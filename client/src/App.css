@@ -1,0 +1,279 @@
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+  color: #252d2b;
+  background: #faf9f6;
+}
+
+button, input, select {
+  font: inherit;
+}
+
+button, a {
+  cursor: pointer;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 7%;
+  background: white;
+}
+
+.logo {
+  font-size: 26px;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: 2px;
+  color: #183d35;
+}
+
+.logo span {
+  font-weight: 400;
+  color: #b99a6b;
+}
+
+nav {
+  display: flex;
+  gap: 32px;
+}
+
+nav a {
+  text-decoration: none;
+  color: #3d4743;
+  font-size: 14px;
+}
+
+.nav-button, .hero-button, .search-button {
+  background: #183d35;
+  color: white;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.hero {
+  min-height: 540px;
+  display: flex;
+  align-items: center;
+  padding: 70px 10%;
+  color: white;
+  background:
+    linear-gradient(90deg, rgba(13,32,28,.85), rgba(13,32,28,.12)),
+    url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1800')
+    center/cover;
+}
+
+.hero-content {
+  max-width: 650px;
+}
+
+.eyebrow, .section-label {
+  letter-spacing: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d7b889;
+}
+
+.hero h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(40px, 5vw, 66px);
+  font-weight: 500;
+  line-height: 1.2;
+  margin: 18px 0;
+}
+
+.hero-content > p:not(.eyebrow) {
+  line-height: 1.8;
+  max-width: 450px;
+}
+
+.hero-button {
+  display: inline-block;
+  margin-top: 20px;
+  background: #bd9a67;
+}
+
+.booking-section {
+  max-width: 1150px;
+  margin: -38px auto 0;
+  padding: 0 20px;
+  position: relative;
+}
+
+.booking-form {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+  gap: 20px;
+  align-items: end;
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 12px 35px rgba(0,0,0,.08);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-field label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form-field input, .form-field select {
+  width: 100%;
+  height: 46px;
+  border: 1px solid #deded9;
+  border-radius: 5px;
+  padding: 0 12px;
+  background: white;
+  color: #333;
+}
+
+.search-button {
+  height: 46px;
+}
+
+.search-message {
+  text-align: center;
+  padding: 15px;
+  background: #e9f1eb;
+  border-radius: 6px;
+}
+
+.rooms-section {
+  padding: 100px 7%;
+  text-align: center;
+  max-width: 1450px;
+  margin: auto;
+}
+
+.rooms-section h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 40px;
+  font-weight: 500;
+  margin: 12px 0;
+}
+
+.section-description {
+  color: #777;
+  margin-bottom: 45px;
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 25px;
+  text-align: left;
+}
+
+.room-card {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 5px 25px rgba(0,0,0,.05);
+}
+
+.room-card img {
+  width: 100%;
+  height: 235px;
+  object-fit: cover;
+}
+
+.room-info {
+  padding: 25px;
+}
+
+.capacity {
+  font-size: 12px;
+  color: #a28458;
+}
+
+.room-info h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 25px;
+  margin: 12px 0;
+}
+
+.room-info p {
+  color: #777;
+  line-height: 1.6;
+  font-size: 14px;
+  min-height: 45px;
+}
+
+.room-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 25px;
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
+.room-footer strong {
+  color: #183d35;
+  font-size: 19px;
+}
+
+.room-footer small {
+  color: #888;
+}
+
+.room-footer button {
+  background: #183d35;
+  color: white;
+  border: none;
+  padding: 11px 17px;
+  border-radius: 5px;
+}
+
+footer {
+  background: #17372f;
+  color: white;
+  text-align: center;
+  padding: 50px 20px;
+}
+
+footer h2 {
+  letter-spacing: 3px;
+}
+
+footer p, footer small {
+  color: #c4d1c9;
+}
+
+@media (max-width: 850px) {
+  nav {
+    display: none;
+  }
+
+  .booking-form, .room-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    min-height: 450px;
+  }
+
+  .rooms-section {
+    padding: 70px 6%;
+  }
+}
