@@ -1,6 +1,7 @@
 
 const express = require("express");
 const cors = require("cors");
+const pool = require("./db");
 
 const app = express();
 const PORT = 3001;
@@ -16,7 +17,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-
+// Oda verileri (simdilik ornek veriler)
 app.get("/api/rooms", (req, res) => {
   const rooms = [
     {
@@ -48,6 +49,29 @@ app.get("/api/rooms", (req, res) => {
   res.json(rooms);
 });
 
+// PostgreSQL baglanti kontrolu
+app.get("/api/db-health", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT NOW() AS server_time"
+    );
+
+    res.json({
+      success: true,
+      message: "PostgreSQL bağlantısı başarılı!",
+      serverTime: result.rows[0].server_time
+    });
+  } catch (error) {
+    console.error("Database error:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "PostgreSQL bağlantısı başarısız."
+    });
+  }
+});
+
+// Sunucuyu baslat
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
