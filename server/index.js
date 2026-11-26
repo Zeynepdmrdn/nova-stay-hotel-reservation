@@ -277,6 +277,77 @@ app.post("/api/reservations", async (req, res) => {
   }
 });
 
+
+ // Tarihe gore musait oda sorgulama
+app.get("/api/availability", async (req, res) => {
+  const { checkIn, checkOut, guests } = req.query;
+
+  const start = parseDate(checkIn);
+  const end = parseDate(checkOut);
+  const guestCount = Number(guests);
+
+  if (
+    !start ||
+    !end ||
+    end <= start ||
+    !Number.isInteger(guestCount) ||
+    guestCount < 1
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Geçerli tarih ve misafir sayısı giriniz."
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        rt.id,
+        rt.name,
+        rt.description,
+        rt.capacity,
+        rt.price_per_night AS price,
+        (
+          SELECT COUNT(*)::int
+          FROM rooms r
+          WHERE r.room_type_id = rt.id
+            AND r.is_active = TRUE
+            AND NOT EXISTS (
+              SELECT 1
+              FROM reservations b
+              WHERE b.room_id = r.id
+                AND b.status IN ('pending', 'confirmed')
+                AND b.check_in < $2::date
+                AND b.check_out > $1::date
+            )
+        ) AS available_count
+      FROM room_types rt
+      WHERE rt.capacity >= $3
+      ORDER BY rt.id
+      `,
+      [checkIn, checkOut, guestCount]
+    );
+
+    const availableRooms = result.rows
+      .filter((room) => room.available_count > 0)
+      .map((room) => ({
+        ...room,
+        price: Number(room.price),
+        image: roomImages[room.name] || ""
+      }));
+
+    res.json(availableRooms);
+  } catch (error) {
+    console.error("Availability error:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "Müsait odalar sorgulanamadı."
+    });
+  }
+});
+
 // 7. Sunucuyu başlat
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

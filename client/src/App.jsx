@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 const API_URL = "http://localhost:3001";
@@ -9,7 +8,9 @@ function App() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const [availableRooms, setAvailableRooms] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const searchVersion = useRef(0);
   // Rezervasyon arama bilgileri
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -84,17 +85,27 @@ function App() {
     }
   }, [selectedRoom]);
 
-  // Kişi kapasitesine göre odaları filtrele
-  const filteredRooms = rooms.filter(
+  // Kişi kapasitesine ve arama sonucuna göre odaları göster
+  const filteredRooms = (availableRooms ?? rooms).filter(
     (room) => room.capacity >= Number(guests)
   );
 
-  // Oda arama
-  function searchRooms(event) {
+  // Arama kriteri değişirse önceki müsaitlik sonuçlarını geçersiz kıl
+  function resetAvailability() {
+    searchVersion.current += 1;
+    setSearching(false);
+    setAvailableRooms(null);
+    setSelectedRoom(null);
+    setBookingStatus(null);
+    setMessage("");
+  }
+
+  // PostgreSQL'den tarihe göre gerçekten müsait odaları sorgula
+  async function searchRooms(event) {
     event.preventDefault();
 
     if (!checkIn || !checkOut) {
-      setMessage("Lütfen tarihleri seçiniz.");
+      setMessage("Lütfen giriş ve çıkış tarihlerini seçiniz.");
       return;
     }
 
@@ -103,17 +114,57 @@ function App() {
       return;
     }
 
-    setMessage(
-      "Kişi kapasitesine uygun odalar listelendi. " +
-      "Tarihe göre müsaitlik kontrolü sonraki aşamada eklenecek."
-    );
+    const currentSearch = ++searchVersion.current;
+    setSearching(true);
+    setMessage("");
+    setAvailableRooms(null);
+    setSelectedRoom(null);
+    setBookingStatus(null);
 
-    document.getElementById("rooms")
-      ?.scrollIntoView({ behavior: "smooth" });
+    try {
+      const params = new URLSearchParams({
+        checkIn,
+        checkOut,
+        guests: String(guests)
+      });
+
+      const response = await fetch(`${API_URL}/api/availability?${params}`);
+      const data = await response.json();
+      if (currentSearch !== searchVersion.current) return;
+
+      if (!response.ok) {
+        throw new Error(data.message || "Müsaitlik kontrolü başarısız.");
+      }
+
+      if (!Array.isArray(data)) {
+        throw new Error("Geçersiz API yanıtı.");
+      }
+
+      setAvailableRooms(data);
+      setMessage(
+        data.length === 0
+          ? "Seçtiğiniz tarihlerde uygun oda bulunamadı."
+          : `${data.length} müsait oda tipi bulundu!`
+      );
+
+      document.getElementById("rooms")?.scrollIntoView({
+        behavior: "smooth"
+      });
+    } catch (err) {
+      if (currentSearch === searchVersion.current) {
+        setAvailableRooms(null);
+        setMessage(err.message || "Müsaitlik sorgusu başarısız oldu.");
+      }
+    } finally {
+      if (currentSearch === searchVersion.current) {
+        setSearching(false);
+      }
+    }
   }
 
   // Oda seçimi
   function selectRoom(room) {
+    if (availableRooms === null || searching) return;
     setSelectedRoom(room);
     setBookingStatus(null);
     setMessage("");
@@ -123,7 +174,7 @@ function App() {
   async function createReservation(event) {
     event.preventDefault();
 
-    if (!selectedRoom) return;
+    if (!selectedRoom || availableRooms === null) return;
 
     if (
       !checkIn ||
@@ -188,6 +239,8 @@ function App() {
       setGuestName("");
       setEmail("");
       setPhone("");
+      // Yeni rezervasyon için tarih müsaitliği tekrar kontrol edilmeli.
+      setAvailableRooms(null);
 
     } catch (err) {
       setBookingStatus({
@@ -253,8 +306,10 @@ function App() {
               value={checkIn}
               min={today}
               onChange={(e) => {
-                setCheckIn(e.target.value);
-                setBookingStatus(null);
+                const nextDate = e.target.value;
+                setCheckIn(nextDate);
+                if (checkOut && checkOut <= nextDate) setCheckOut("");
+                resetAvailability();
               }}
               required
             />
@@ -269,7 +324,7 @@ function App() {
               min={checkIn || today}
               onChange={(e) => {
                 setCheckOut(e.target.value);
-                setBookingStatus(null);
+                resetAvailability();
               }}
               required
             />
@@ -282,8 +337,7 @@ function App() {
               value={guests}
               onChange={(e) => {
                 setGuests(Number(e.target.value));
-                setSelectedRoom(null);
-                setBookingStatus(null);
+                resetAvailability();
               }}
             >
               <option value="1">1 Kişi</option>
@@ -293,8 +347,12 @@ function App() {
             </select>
           </div>
 
-          <button type="submit" className="search-button">
-            Oda Ara
+          <button
+            type="submit"
+            className="search-button"
+            disabled={searching}
+          >
+            {searching ? "Odalar Kontrol Ediliyor..." : "Oda Ara"}
           </button>
         </form>
 
@@ -322,7 +380,7 @@ function App() {
 
         {!loading && !error &&
           filteredRooms.length === 0 && (
-            <p>Uygun oda tipi bulunamadı.</p>
+            <p>Bu kriterlere uygun oda tipi bulunamadı.</p>
           )}
 
         {!loading && !error && (
@@ -349,9 +407,10 @@ function App() {
 
                     <button
                       type="button"
+                      disabled={availableRooms === null || searching}
                       onClick={() => selectRoom(room)}
                     >
-                      Rezervasyon Yap
+                      {availableRooms === null ? "Önce Oda Ara" : "Rezervasyon Yap"}
                     </button>
                   </div>
                 </div>
@@ -433,7 +492,7 @@ function App() {
               <button
                 type="submit"
                 className="search-button reservation-submit"
-                disabled={submitting}
+                disabled={submitting || bookingStatus?.type === "success"}
               >
                 {submitting
                   ? "Rezervasyon Oluşturuluyor..."
