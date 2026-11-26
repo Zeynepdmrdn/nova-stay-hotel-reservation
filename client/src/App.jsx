@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
+const API_URL = "http://localhost:3001";
+
 function App() {
-  // Backend'den gelecek oda verileri
+  // Oda verileri
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -14,22 +16,46 @@ function App() {
   const [guests, setGuests] = useState(2);
   const [message, setMessage] = useState("");
 
-  // Express API'den oda bilgilerini getir
+  // Seçilen oda
+  const [selectedRoom, setSelectedRoom] = useState(null);
+
+  // Misafir bilgileri
+  const [guestName, setGuestName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+
+  // Rezervasyon durumları
+  const [submitting, setSubmitting] = useState(false);
+  const [bookingStatus, setBookingStatus] = useState(null);
+
+  const todayDate = new Date();
+  const today = [
+    todayDate.getFullYear(),
+    String(todayDate.getMonth() + 1).padStart(2, "0"),
+    String(todayDate.getDate()).padStart(2, "0")
+  ].join("-");
+
+  // PostgreSQL verilerini Express API üzerinden al
   useEffect(() => {
     const controller = new AbortController();
 
     async function fetchRooms() {
       try {
         const response = await fetch(
-          "http://localhost:3001/api/rooms",
+          `${API_URL}/api/rooms`,
           { signal: controller.signal }
         );
 
         if (!response.ok) {
-          throw new Error("Oda verileri alınamadı.");
+          throw new Error("Odalar alınamadı.");
         }
 
         const data = await response.json();
+
+        if (!Array.isArray(data)) {
+          throw new Error("Geçersiz oda verisi.");
+        }
+
         setRooms(data);
       } catch (err) {
         if (err.name !== "AbortError") {
@@ -47,40 +73,135 @@ function App() {
     return () => controller.abort();
   }, []);
 
-  // Kişi sayısına göre oda filtreleme
+  // Oda seçildiğinde rezervasyon formuna git
+  useEffect(() => {
+    if (selectedRoom) {
+      document.getElementById("reservation-form")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+    }
+  }, [selectedRoom]);
+
+  // Kişi kapasitesine göre odaları filtrele
   const filteredRooms = rooms.filter(
     (room) => room.capacity >= Number(guests)
   );
 
-  // Oda arama işlemi
+  // Oda arama
   function searchRooms(event) {
     event.preventDefault();
 
     if (!checkIn || !checkOut) {
-      setMessage("Lütfen giriş ve çıkış tarihlerini seçiniz.");
+      setMessage("Lütfen tarihleri seçiniz.");
       return;
     }
 
-    if (checkOut <= checkIn) {
-      setMessage(
-        "Çıkış tarihi giriş tarihinden sonra olmalıdır."
-      );
+    if (checkIn < today || checkOut <= checkIn) {
+      setMessage("Lütfen geçerli tarihler seçiniz.");
       return;
     }
 
     setMessage(
-      "Kişi sayısına uygun oda tipleri listelendi. " +
-      "Tarihe göre gerçek müsaitlik kontrolünü " +
-      "veritabanı bağlantısından sonra ekleyeceğiz."
+      "Kişi kapasitesine uygun odalar listelendi. " +
+      "Tarihe göre müsaitlik kontrolü sonraki aşamada eklenecek."
     );
 
-    document.getElementById("rooms")?.scrollIntoView({
-      behavior: "smooth",
-    });
+    document.getElementById("rooms")
+      ?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  // Oda seçimi
+  function selectRoom(room) {
+    setSelectedRoom(room);
+    setBookingStatus(null);
+    setMessage("");
+  }
+
+  // Rezervasyonu backend'e gönder
+  async function createReservation(event) {
+    event.preventDefault();
+
+    if (!selectedRoom) return;
+
+    if (
+      !checkIn ||
+      !checkOut ||
+      checkIn < today ||
+      checkOut <= checkIn
+    ) {
+      setBookingStatus({
+        type: "error",
+        message: "Lütfen geçerli konaklama tarihleri seçiniz."
+      });
+      return;
+    }
+
+    if (Number(guests) > selectedRoom.capacity) {
+      setBookingStatus({
+        type: "error",
+        message: "Seçilen oda kişi sayısına uygun değil."
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    setBookingStatus(null);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/reservations`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            guestName: guestName.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
+            roomTypeId: selectedRoom.id,
+            checkIn,
+            checkOut
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Rezervasyon oluşturulamadı."
+        );
+      }
+
+      setBookingStatus({
+        type: "success",
+        message:
+          `Rezervasyon #${data.reservationId} oluşturuldu! ` +
+          `Oda: ${data.roomNumber} | ` +
+          `Toplam: ${Number(data.totalPrice).toLocaleString("tr-TR")} TL. ` +
+          "Rezervasyonunuz onay bekliyor."
+      });
+
+      setGuestName("");
+      setEmail("");
+      setPhone("");
+
+    } catch (err) {
+      setBookingStatus({
+        type: "error",
+        message: err.message
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <div className="app">
+
       {/* Üst menü */}
       <header className="navbar">
         <a href="#home" className="logo">
@@ -120,41 +241,50 @@ function App() {
         </div>
       </section>
 
-      {/* Rezervasyon arama alanı */}
+      {/* Tarih ve kişi seçimi */}
       <section className="booking-section" id="booking">
         <form className="booking-form" onSubmit={searchRooms}>
+
           <div className="form-field">
-            <label>Giriş Tarihi</label>
+            <label htmlFor="check-in">Giriş Tarihi</label>
             <input
+              id="check-in"
               type="date"
               value={checkIn}
-              min={new Date().toLocaleDateString("en-CA")}
-              onChange={(e) => setCheckIn(e.target.value)}
+              min={today}
+              onChange={(e) => {
+                setCheckIn(e.target.value);
+                setBookingStatus(null);
+              }}
               required
             />
           </div>
 
           <div className="form-field">
-            <label>Çıkış Tarihi</label>
+            <label htmlFor="check-out">Çıkış Tarihi</label>
             <input
+              id="check-out"
               type="date"
               value={checkOut}
-              min={
-                checkIn ||
-                new Date().toLocaleDateString("en-CA")
-              }
-              onChange={(e) => setCheckOut(e.target.value)}
+              min={checkIn || today}
+              onChange={(e) => {
+                setCheckOut(e.target.value);
+                setBookingStatus(null);
+              }}
               required
             />
           </div>
 
           <div className="form-field">
-            <label>Misafir Sayısı</label>
+            <label htmlFor="guest-count">Misafir Sayısı</label>
             <select
+              id="guest-count"
               value={guests}
-              onChange={(e) =>
-                setGuests(Number(e.target.value))
-              }
+              onChange={(e) => {
+                setGuests(Number(e.target.value));
+                setSelectedRoom(null);
+                setBookingStatus(null);
+              }}
             >
               <option value="1">1 Kişi</option>
               <option value="2">2 Kişi</option>
@@ -176,14 +306,12 @@ function App() {
       {/* Odalar */}
       <section className="rooms-section" id="rooms">
         <p className="section-label">KONAKLAMA</p>
-
         <h2>Size Özel Odalarımız</h2>
 
         <p className="section-description">
           İhtiyaçlarınıza uygun odalarımızı keşfedin.
         </p>
 
-        {/* API yüklenme ve hata kontrolü */}
         {loading && <p>Odalar yükleniyor...</p>}
 
         {error && (
@@ -192,15 +320,11 @@ function App() {
           </p>
         )}
 
-        {!loading &&
-          !error &&
+        {!loading && !error &&
           filteredRooms.length === 0 && (
-            <p>
-              Seçilen kişi sayısına uygun oda bulunamadı.
-            </p>
+            <p>Uygun oda tipi bulunamadı.</p>
           )}
 
-        {/* Backend'den gelen odalar */}
         {!loading && !error && (
           <div className="room-grid">
             {filteredRooms.map((room) => (
@@ -225,21 +349,9 @@ function App() {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setMessage(
-                          `${room.name} seçildi. ` +
-                          "Rezervasyon formunu sonraki " +
-                          "aşamada ekleyeceğiz."
-                        );
-
-                        document
-                          .getElementById("booking")
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                          });
-                      }}
+                      onClick={() => selectRoom(room)}
                     >
-                      İncele
+                      Rezervasyon Yap
                     </button>
                   </div>
                 </div>
@@ -249,12 +361,110 @@ function App() {
         )}
       </section>
 
-      {/* Alt alan */}
+      {/* Gerçek rezervasyon formu */}
+      {selectedRoom && (
+        <section
+          className="reservation-section"
+          id="reservation-form"
+        >
+          <div className="reservation-panel">
+
+            <p className="section-label">
+              REZERVASYON
+            </p>
+
+            <h2>Rezervasyonunuzu Tamamlayın</h2>
+
+            <p className="selected-room-text">
+              Seçilen oda: <strong>{selectedRoom.name}</strong>
+            </p>
+
+            <p className="reservation-dates">
+              {checkIn && checkOut
+                ? `${checkIn} — ${checkOut}`
+                : "Lütfen üst bölümden tarih seçiniz."}
+            </p>
+
+            <form
+              className="reservation-fields"
+              onSubmit={createReservation}
+            >
+              <div className="form-field">
+                <label htmlFor="full-name">Ad Soyad</label>
+                <input
+                  id="full-name"
+                  type="text"
+                  placeholder="Adınız ve soyadınız"
+                  value={guestName}
+                  onChange={(e) =>
+                    setGuestName(e.target.value)
+                  }
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="email">E-posta</label>
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="ornek@email.com"
+                  value={email}
+                  onChange={(e) =>
+                    setEmail(e.target.value)
+                  }
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="phone">Telefon</label>
+                <input
+                  id="phone"
+                  type="tel"
+                  placeholder="05XX XXX XX XX"
+                  value={phone}
+                  onChange={(e) =>
+                    setPhone(e.target.value)
+                  }
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="search-button reservation-submit"
+                disabled={submitting}
+              >
+                {submitting
+                  ? "Rezervasyon Oluşturuluyor..."
+                  : "Rezervasyonu Tamamla"}
+              </button>
+            </form>
+
+            {bookingStatus && (
+              <p
+                role="status"
+                className={
+                  bookingStatus.type === "success"
+                    ? "booking-success"
+                    : "booking-error"
+                }
+              >
+                {bookingStatus.message}
+              </p>
+            )}
+
+          </div>
+        </section>
+      )}
+
+      {/* Footer */}
       <footer id="about">
         <h2>NOVASTAY</h2>
         <p>Konforun ve huzurun buluşma noktası.</p>
         <small>© 2026 Nova Stay Hotel</small>
       </footer>
+
     </div>
   );
 }
