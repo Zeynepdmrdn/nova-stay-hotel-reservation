@@ -9,7 +9,7 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
-// API kontrolü
+// Backend kontrolü
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
@@ -17,39 +17,58 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Oda verileri (simdilik ornek veriler)
-app.get("/api/rooms", (req, res) => {
-  const rooms = [
-    {
-      id: 1,
-      name: "Standard Oda",
-      price: 1800,
-      capacity: 2,
-      description: "Konforlu ve modern bir konaklama deneyimi.",
-      image: "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=900"
-    },
-    {
-      id: 2,
-      name: "Deluxe Oda",
-      price: 2900,
-      capacity: 3,
-      description: "Şık tasarım, geniş yaşam alanı ve lüks detaylar.",
-      image: "https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=900"
-    },
-    {
-      id: 3,
-      name: "Suite Oda",
-      price: 4500,
-      capacity: 4,
-      description: "Ayrıcalıklı konfor ve unutulmaz bir otel deneyimi.",
-      image: "https://images.unsplash.com/photo-1591088398332-8a7791972843?w=900"
-    }
-  ];
+// Oda fotoğrafları
+const roomImages = {
+  "Standard Oda":
+    "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=900",
+  "Deluxe Oda":
+    "https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=900",
+  "Suite Oda":
+    "https://images.unsplash.com/photo-1591088398332-8a7791972843?w=900"
+};
 
-  res.json(rooms);
+// Odaları PostgreSQL'den getir
+app.get("/api/rooms", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        rt.id,
+        rt.name,
+        rt.description,
+        rt.capacity,
+        rt.price_per_night AS price,
+        COUNT(r.id)::int AS room_count
+      FROM room_types rt
+      JOIN rooms r
+        ON r.room_type_id = rt.id
+      WHERE r.is_active = TRUE
+      GROUP BY
+        rt.id,
+        rt.name,
+        rt.description,
+        rt.capacity,
+        rt.price_per_night
+      ORDER BY rt.id
+    `);
+
+    const rooms = result.rows.map((room) => ({
+      ...room,
+      price: Number(room.price),
+      image: roomImages[room.name] || ""
+    }));
+
+    res.json(rooms);
+  } catch (error) {
+    console.error("Room API error:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "Odalar veritabanından alınamadı."
+    });
+  }
 });
 
-// PostgreSQL baglanti kontrolu
+// PostgreSQL bağlantı kontrolü
 app.get("/api/db-health", async (req, res) => {
   try {
     const result = await pool.query(
@@ -71,7 +90,7 @@ app.get("/api/db-health", async (req, res) => {
   }
 });
 
-// Sunucuyu baslat
+// Sunucuyu başlat
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
